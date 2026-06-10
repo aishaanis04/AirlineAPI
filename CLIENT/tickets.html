@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AeroDash - Tickets Board</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 24px; background: white; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold text-primary" href="Dashboard.html"><i class="fas fa-plane-departure me-2"></i>AeroDash</a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto">
+          <li><a class="nav-link" href="Dashboard.html">Dashboard</a></li>
+          <li><a class="nav-link" href="flights.html">Flights</a></li>
+          <li><a class="nav-link" href="passengers.html">Passengers</a></li>
+          <li><a class="nav-link active" href="tickets.html">Tickets</a></li>
+          <li><a class="nav-link" href="Airlines.html">Airlines</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container my-5">
+    <h1 class="fw-bold mb-4">Fare Matrix Console</h1>
+
+    <div class="card mb-4">
+      <h5 class="fw-bold text-info mb-3" id="formHeader"><i class="fas fa-ticket-alt me-2"></i>Issue New Boarding Pass</h5>
+      <form id="ticketForm" onsubmit="handleTicketSubmit(event)">
+        <div class="row g-3">
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Seat No</label>
+            <input type="text" id="seat_no" class="form-control" required placeholder="e.g., 12A">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Cabin Class</label>
+            <input type="text" id="class" class="form-control" required placeholder="e.g., Economy">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Fare Price</label>
+            <input type="number" step="0.01" id="price" class="form-control" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Passenger ID</label>
+            <input type="number" id="passenger_id" class="form-control" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Flight ID</label>
+            <input type="number" id="flight_id" class="form-control" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Reservation ID</label>
+            <input type="number" id="reservation_id" class="form-control">
+          </div>
+        </div>
+        <div class="mt-3 text-end">
+          <button type="button" class="btn btn-light border me-2" onclick="clearTicketForm()">Reset</button>
+          <button type="submit" id="submitBtn" class="btn btn-info text-white px-4">Generate Entry</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>TICKET ID</th>
+            <th>SEAT</th>
+            <th>CLASS</th>
+            <th>PRICE</th>
+            <th>RELATIONAL CODES</th>
+            <th class="text-end">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody id="ticketTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const API_ENDPOINT = "https://fictional-space-fishstick-v6xgj6w979wq269wr-3000.app.github.dev";
+    let activeTicketId = null;
+
+    async function loadTicketsData() {
+      const tbody = document.getElementById('ticketTableBody');
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-info"></div></td></tr>`;
+      try {
+        const res = await fetch(`${API_ENDPOINT}/ticket`);
+        const rows = await res.json();
+        tbody.innerHTML = "";
+
+        rows.forEach(row => {
+          tbody.insertAdjacentHTML('beforeend', `
+            <tr>
+              <td><strong>#${row.ticket_id}</strong></td>
+              <td><span class="badge bg-dark">${row.seat_no}</span></td>
+              <td>${row.class}</td>
+              <td class="text-success fw-bold">$${parseFloat(row.price).toFixed(2)}</td>
+              <td><small class="text-muted">Pass ID: ${row.passenger_id} | Flight ID: ${row.flight_id}</small></td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick='setupTicketEdit(${JSON.stringify(row)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteTicketEntry(${row.ticket_id})"><i class="fas fa-trash"></i></button>
+              </td>
+            </tr>
+          `);
+        });
+      } catch (err) { tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error polling tickets view data.</td></tr>`; }
+    }
+
+    async function handleTicketSubmit(e) {
+      e.preventDefault();
+      const payload = {
+        seat_no: document.getElementById('seat_no').value,
+        class: document.getElementById('class').value,
+        price: parseFloat(document.getElementById('price').value),
+        passenger_id: parseInt(document.getElementById('passenger_id').value),
+        flight_id: parseInt(document.getElementById('flight_id').value),
+        reservation_id: document.getElementById('reservation_id').value ? parseInt(document.getElementById('reservation_id').value) : null
+      };
+
+      const url = activeTicketId ? `${API_ENDPOINT}/ticket/${activeTicketId}` : `${API_ENDPOINT}/ticket`;
+      const method = activeTicketId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        clearTicketForm();
+        loadTicketsData();
+      } else {
+        alert("Database execution error. Verify that Passenger ID and Flight ID exist.");
+      }
+    }
+
+    function setupTicketEdit(row) {
+      activeTicketId = row.ticket_id;
+      document.getElementById('formHeader').innerHTML = `<i class="fas fa-edit me-2"></i>Modifying Ticket Item #${activeTicketId}`;
+      document.getElementById('submitBtn').innerText = "Apply Updates";
+      document.getElementById('seat_no').value = row.seat_no;
+      document.getElementById('class').value = row.class;
+      document.getElementById('price').value = row.price;
+      document.getElementById('passenger_id').value = row.passenger_id;
+      document.getElementById('flight_id').value = row.flight_id;
+      document.getElementById('reservation_id').value = row.reservation_id || "";
+    }
+
+    function clearTicketForm() {
+      activeTicketId = null;
+      document.getElementById('ticketForm').reset();
+      document.getElementById('formHeader').innerHTML = `<i class="fas fa-ticket-alt me-2"></i>Issue New Boarding Pass`;
+      document.getElementById('submitBtn').innerText = "Generate Entry";
+    }
+
+    async function deleteTicketEntry(id) {
+      if (confirm("Void this transaction item?")) {
+        await fetch(`${API_ENDPOINT}/ticket/${id}`, { method: 'DELETE' });
+        loadTicketsData();
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadTicketsData);
+  </script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AeroDash - Airlines Panel</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 24px; background: white; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold text-primary" href="Dashboard.html"><i class="fas fa-plane-departure me-2"></i>AeroDash</a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto">
+          <li><a class="nav-link" href="Dashboard.html">Dashboard</a></li>
+          <li><a class="nav-link" href="flights.html">Flights</a></li>
+          <li><a class="nav-link" href="passengers.html">Passengers</a></li>
+          <li><a class="nav-link" href="tickets.html">Tickets</a></li>
+          <li><a class="nav-link active" href="Airlines.html">Airlines</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container my-5" style="max-width: 700px;">
+    <h1 class="fw-bold mb-4">Carrier System Hub</h1>
+
+    <div class="card mb-4">
+      <h5 class="fw-bold text-dark mb-3" id="formHeader"><i class="fas fa-building me-2"></i>Add Corporate Carrier</h5>
+      <form id="airlineForm" onsubmit="handleAirlineSubmit(event)">
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Airline Name</label>
+          <input type="text" id="airline_name" class="form-control" required placeholder="e.g., Emirates">
+        </div>
+        <div class="text-end">
+          <button type="button" class="btn btn-light border me-2" onclick="clearAirlineForm()">Reset</button>
+          <button type="submit" id="submitBtn" class="btn btn-dark px-4">Save Carrier</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>AIRLINE ID</th>
+            <th>AIRLINE NAME</th>
+            <th class="text-end">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody id="airlineTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const API_ENDPOINT = "https://fictional-space-fishstick-v6xgj6w979wq269wr-3000.app.github.dev";
+    let activeAirlineId = null;
+
+    async function loadAirlinesData() {
+      const tbody = document.getElementById('airlineTableBody');
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-dark"></div></td></tr>`;
+      try {
+        const res = await fetch(`${API_ENDPOINT}/airline`);
+        const rows = await res.json();
+        tbody.innerHTML = "";
+
+        rows.forEach(row => {
+          tbody.insertAdjacentHTML('beforeend', `
+            <tr>
+              <td><strong>#${row.airline_id}</strong></td>
+              <td class="fw-bold text-secondary">${row.airline_name}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick='setupAirlineEdit(${JSON.stringify(row)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteAirlineEntry(${row.airline_id})"><i class="fas fa-trash"></i></button>
+              </td>
+            </tr>
+          `);
+        });
+      } catch (err) { tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Error fetching carriers data.</td></tr>`; }
+    }
+
+    async function handleAirlineSubmit(e) {
+      e.preventDefault();
+      const payload = {
+        airline_name: document.getElementById('airline_name').value
+      };
+
+      const url = activeAirlineId ? `${API_ENDPOINT}/airline/${activeAirlineId}` : `${API_ENDPOINT}/airline`;
+      const method = activeAirlineId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        clearAirlineForm();
+        loadAirlinesData();
+      }
+    }
+
+    function setupAirlineEdit(row) {
+      activeAirlineId = row.airline_id;
+      document.getElementById('formHeader').innerHTML = `<i class="fas fa-edit me-2"></i>Rename Corporate Unit #${activeAirlineId}`;
+      document.getElementById('submitBtn').innerText = "Apply Updates";
+      document.getElementById('airline_name').value = row.airline_name;
+    }
+
+    function clearAirlineForm() {
+      activeAirlineId = null;
+      document.getElementById('airlineForm').reset();
+      document.getElementById('formHeader').innerHTML = `<i class="fas fa-building me-2"></i>Add Corporate Carrier`;
+      document.getElementById('submitBtn').innerText = "Save Carrier";
+    }
+
+    async function deleteAirlineEntry(id) {
+      if (confirm("Delete this airline carrier profile?")) {
+        const res = await fetch(`${API_ENDPOINT}/airline/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadAirlinesData();
+        } else {
+          alert("Database Error: Delete dependent flight assignments linked to this airline id first.");
+        }
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadAirlinesData);
+  </script>
+</body>
+</html>
